@@ -11,22 +11,17 @@ from PIL import Image
 import torch.nn.functional as F
 
 # --- MODEL WEIGHTS AUTO-DOWNLOAD CONFIGURATION ---
-# Replace this placeholder with your copied Dropbox link (make sure it ends with dl=1)
-DROPBOX_URL = "https://www.dropbox.com/scl/fi/f1lxqlmh2tbtcjmonu1h0/efficientnet_b3_best.zip?rlkey=13upilam4lijh7teqcpmvml7k&st=avoe1uui&dl=1"
+EFF_DROPBOX_URL = "https://www.dropbox.com/scl/fi/f1lxqlmh2tbtcjmonu1h0/efficientnet_b3_best.zip?rlkey=13upilam4lijh7teqcpmvml7k&st=avoe1uui&dl=1"
+RESNET_DROPBOX_URL = "https://www.dropbox.com/scl/fi/9c9otu14o4kn9eqj0m792/resnet50_best-1.zip?rlkey=d5ilztslx74kfws3ppllyvzwg&st=f1wkrz5m&dl=1"
 
 def download_weights_if_missing():
-    """Auto-downloads and extracts model weights from Dropbox if missing."""
+    """Auto-downloads and extracts both EfficientNet-B3 and ResNet50 weights from Dropbox if missing."""
+    # Download EfficientNet-B3
     eff_path = "efficientnet_b3_best.pth"
     if not os.path.exists(eff_path):
-        if "PASTE_YOUR_DROPBOX_LINK" in DROPBOX_URL or not DROPBOX_URL.startswith("http"):
-            st.error("⚠️ Please update `DROPBOX_URL` in `app.py` with your valid Dropbox direct download link.")
-            st.stop()
-            
-        with st.spinner("Downloading model weights from cloud storage... This only happens on initial boot."):
-            temp_file = "downloaded_weights.tmp"
-            urllib.request.urlretrieve(DROPBOX_URL, temp_file)
-            
-            # Extract if ZIP archive, otherwise rename file directly
+        with st.spinner("Downloading EfficientNet-B3 weights..."):
+            temp_file = "eff_weights.tmp"
+            urllib.request.urlretrieve(EFF_DROPBOX_URL, temp_file)
             if zipfile.is_zipfile(temp_file):
                 with zipfile.ZipFile(temp_file, 'r') as zip_ref:
                     zip_ref.extractall(".")
@@ -34,6 +29,20 @@ def download_weights_if_missing():
                     os.remove(temp_file)
             else:
                 os.rename(temp_file, eff_path)
+
+    # Download ResNet50
+    res_exists = os.path.exists('resnet50_best (1).pth') or os.path.exists('resnet50_best.pth')
+    if not res_exists:
+        with st.spinner("Downloading ResNet50 weights..."):
+            temp_file = "res_weights.tmp"
+            urllib.request.urlretrieve(RESNET_DROPBOX_URL, temp_file)
+            if zipfile.is_zipfile(temp_file):
+                with zipfile.ZipFile(temp_file, 'r') as zip_ref:
+                    zip_ref.extractall(".")
+                if os.path.exists(temp_file):
+                    os.remove(temp_file)
+            else:
+                os.rename(temp_file, "resnet50_best.pth")
 
 # --- CUSTOM DECORATORS ---
 
@@ -168,15 +177,13 @@ def load_models():
     eff_model.load_state_dict(eff_ckpt['model_state_dict'] if isinstance(eff_ckpt, dict) and 'model_state_dict' in eff_ckpt else eff_ckpt)
     eff_model.eval()
 
-    # Optional ResNet50 Loading (Graceful fallback if not pushed to repo)
-    res_model = None
+    # Load ResNet50
     res_path = 'resnet50_best (1).pth' if os.path.exists('resnet50_best (1).pth') else 'resnet50_best.pth'
-    if os.path.exists(res_path):
-        res_model = models.resnet50(weights=None)
-        res_model.fc = nn.Linear(res_model.fc.in_features, len(CLASS_NAMES))
-        res_ckpt = torch.load(res_path, map_location='cpu')
-        res_model.load_state_dict(res_ckpt['model_state_dict'] if isinstance(res_ckpt, dict) and 'model_state_dict' in res_ckpt else res_ckpt)
-        res_model.eval()
+    res_model = models.resnet50(weights=None)
+    res_model.fc = nn.Linear(res_model.fc.in_features, len(CLASS_NAMES))
+    res_ckpt = torch.load(res_path, map_location='cpu')
+    res_model.load_state_dict(res_ckpt['model_state_dict'] if isinstance(res_ckpt, dict) and 'model_state_dict' in res_ckpt else res_ckpt)
+    res_model.eval()
 
     return eff_model, res_model
 
