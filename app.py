@@ -15,10 +15,9 @@ EFF_DROPBOX_URL = "https://www.dropbox.com/scl/fi/f1lxqlmh2tbtcjmonu1h0/efficien
 RESNET_DROPBOX_URL = "https://www.dropbox.com/scl/fi/9c9otu14o4kn9eqj0m792/resnet50_best-1.zip?rlkey=d5ilztslx74kfws3ppllyvzwg&st=f1wkrz5m&dl=1"
 
 def download_weights_if_missing():
-    """Auto-downloads and extracts both EfficientNet-B3 and ResNet50 weights from Dropbox if missing."""
-    # Download EfficientNet-B3
-    eff_path = "efficientnet_b3_best.pth"
-    if not os.path.exists(eff_path):
+    """Auto-downloads and extracts missing EfficientNet-B3 and ResNet50 weights."""
+    eff_exists = any('efficient' in f.lower() and f.endswith('.pth') for f in os.listdir('.'))
+    if not eff_exists:
         with st.spinner("Downloading EfficientNet-B3 weights..."):
             temp_file = "eff_weights.tmp"
             urllib.request.urlretrieve(EFF_DROPBOX_URL, temp_file)
@@ -28,10 +27,9 @@ def download_weights_if_missing():
                 if os.path.exists(temp_file):
                     os.remove(temp_file)
             else:
-                os.rename(temp_file, eff_path)
+                os.rename(temp_file, "efficientnet_b3_best.pth")
 
-    # Download ResNet50
-    res_exists = os.path.exists('resnet50_best (1).pth') or os.path.exists('resnet50_best.pth')
+    res_exists = any('resnet' in f.lower() and f.endswith('.pth') for f in os.listdir('.'))
     if not res_exists:
         with st.spinner("Downloading ResNet50 weights..."):
             temp_file = "res_weights.tmp"
@@ -170,20 +168,23 @@ SMART_RECYCLING_AGENT_DB = {
 def load_models():
     download_weights_if_missing()
 
-    # Load EfficientNet-B3
+    # Load EfficientNet-B3 (Dynamic lookup)
+    eff_path = next((f for f in os.listdir('.') if 'efficient' in f.lower() and f.endswith('.pth')), 'efficientnet_b3_best.pth')
     eff_model = models.efficientnet_b3(weights=None)
     eff_model.classifier[1] = nn.Linear(eff_model.classifier[1].in_features, len(CLASS_NAMES))
-    eff_ckpt = torch.load('efficientnet_b3_best.pth', map_location='cpu')
+    eff_ckpt = torch.load(eff_path, map_location='cpu')
     eff_model.load_state_dict(eff_ckpt['model_state_dict'] if isinstance(eff_ckpt, dict) and 'model_state_dict' in eff_ckpt else eff_ckpt)
     eff_model.eval()
 
-    # Load ResNet50
-    res_path = 'resnet50_best (1).pth' if os.path.exists('resnet50_best (1).pth') else 'resnet50_best.pth'
-    res_model = models.resnet50(weights=None)
-    res_model.fc = nn.Linear(res_model.fc.in_features, len(CLASS_NAMES))
-    res_ckpt = torch.load(res_path, map_location='cpu')
-    res_model.load_state_dict(res_ckpt['model_state_dict'] if isinstance(res_ckpt, dict) and 'model_state_dict' in res_ckpt else res_ckpt)
-    res_model.eval()
+    # Load ResNet50 (Dynamic lookup)
+    res_path = next((f for f in os.listdir('.') if 'resnet' in f.lower() and f.endswith('.pth')), None)
+    res_model = None
+    if res_path and os.path.exists(res_path):
+        res_model = models.resnet50(weights=None)
+        res_model.fc = nn.Linear(res_model.fc.in_features, len(CLASS_NAMES))
+        res_ckpt = torch.load(res_path, map_location='cpu')
+        res_model.load_state_dict(res_ckpt['model_state_dict'] if isinstance(res_ckpt, dict) and 'model_state_dict' in res_ckpt else res_ckpt)
+        res_model.eval()
 
     return eff_model, res_model
 
