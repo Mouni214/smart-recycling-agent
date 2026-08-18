@@ -1,12 +1,39 @@
 import os
 import time
 import functools
+import urllib.request
+import zipfile
 import streamlit as st
 import torch
 import torch.nn as nn
 from torchvision import models, transforms
 from PIL import Image
 import torch.nn.functional as F
+
+# --- MODEL WEIGHTS AUTO-DOWNLOAD CONFIGURATION ---
+# Replace this placeholder with your copied Dropbox link (make sure it ends with dl=1)
+DROPBOX_URL = "https://www.dropbox.com/scl/fi/f1lxqlmh2tbtcjmonu1h0/efficientnet_b3_best.zip?rlkey=13upilam4lijh7teqcpmvml7k&st=avoe1uui&dl=1"
+
+def download_weights_if_missing():
+    """Auto-downloads and extracts model weights from Dropbox if missing."""
+    eff_path = "efficientnet_b3_best.pth"
+    if not os.path.exists(eff_path):
+        if "PASTE_YOUR_DROPBOX_LINK" in DROPBOX_URL or not DROPBOX_URL.startswith("http"):
+            st.error("⚠️ Please update `DROPBOX_URL` in `app.py` with your valid Dropbox direct download link.")
+            st.stop()
+            
+        with st.spinner("Downloading model weights from cloud storage... This only happens on initial boot."):
+            temp_file = "downloaded_weights.tmp"
+            urllib.request.urlretrieve(DROPBOX_URL, temp_file)
+            
+            # Extract if ZIP archive, otherwise rename file directly
+            if zipfile.is_zipfile(temp_file):
+                with zipfile.ZipFile(temp_file, 'r') as zip_ref:
+                    zip_ref.extractall(".")
+                if os.path.exists(temp_file):
+                    os.remove(temp_file)
+            else:
+                os.rename(temp_file, eff_path)
 
 # --- CUSTOM DECORATORS ---
 
@@ -128,22 +155,28 @@ SMART_RECYCLING_AGENT_DB = {
     }
 }
 
-# --- MODEL LOADING WITH CACHING ---
+# --- MODEL LOADING WITH CACHING & AUTO-DOWNLOAD ---
 
 @st.cache_resource
 def load_models():
+    download_weights_if_missing()
+
+    # Load EfficientNet-B3
     eff_model = models.efficientnet_b3(weights=None)
     eff_model.classifier[1] = nn.Linear(eff_model.classifier[1].in_features, len(CLASS_NAMES))
     eff_ckpt = torch.load('efficientnet_b3_best.pth', map_location='cpu')
     eff_model.load_state_dict(eff_ckpt['model_state_dict'] if isinstance(eff_ckpt, dict) and 'model_state_dict' in eff_ckpt else eff_ckpt)
     eff_model.eval()
 
+    # Optional ResNet50 Loading (Graceful fallback if not pushed to repo)
+    res_model = None
     res_path = 'resnet50_best (1).pth' if os.path.exists('resnet50_best (1).pth') else 'resnet50_best.pth'
-    res_model = models.resnet50(weights=None)
-    res_model.fc = nn.Linear(res_model.fc.in_features, len(CLASS_NAMES))
-    res_ckpt = torch.load(res_path, map_location='cpu')
-    res_model.load_state_dict(res_ckpt['model_state_dict'] if isinstance(res_ckpt, dict) and 'model_state_dict' in res_ckpt else res_ckpt)
-    res_model.eval()
+    if os.path.exists(res_path):
+        res_model = models.resnet50(weights=None)
+        res_model.fc = nn.Linear(res_model.fc.in_features, len(CLASS_NAMES))
+        res_ckpt = torch.load(res_path, map_location='cpu')
+        res_model.load_state_dict(res_ckpt['model_state_dict'] if isinstance(res_ckpt, dict) and 'model_state_dict' in res_ckpt else res_ckpt)
+        res_model.eval()
 
     return eff_model, res_model
 
@@ -154,8 +187,14 @@ def load_models():
 def predict_ensemble(eff_model, res_model, input_tensor):
     with torch.no_grad():
         eff_probs = F.softmax(eff_model(input_tensor), dim=1)[0]
-        res_probs = F.softmax(res_model(input_tensor), dim=1)[0]
-        ensemble_probs = (eff_probs + res_probs) / 2.0
+        
+        if res_model is not None:
+            res_probs = F.softmax(res_model(input_tensor), dim=1)[0]
+            ensemble_probs = (eff_probs + res_probs) / 2.0
+        else:
+            res_probs = eff_probs
+            ensemble_probs = eff_probs
+            
         confidence, predicted_idx = torch.max(ensemble_probs, 0)
         
     return predicted_idx.item(), confidence.item(), eff_probs, res_probs
@@ -234,7 +273,10 @@ if uploaded_file is not None:
                     st.write(agent_info['upcycling_idea'])
 
                 with tab4:
-                    st.subheader("Ensemble Model Breakdown")
+                    st.subheader("Model Breakdown")
                     col_eff, col_res = st.columns(2)
                     col_eff.metric("EfficientNet-B3", CLASS_NAMES[torch.argmax(eff_probs).item()].upper(), f"{torch.max(eff_probs).item()*100:.1f}%")
-                    col_res.metric("ResNet50", CLASS_NAMES[torch.argmax(res_probs).item()].upper(), f"{torch.max(res_probs).item()*100:.1f}%")
+                    if res_model is not None:
+                        col_res.metric("ResNet50", CLASS_NAMES[torch.argmax(res_probs).item()].upper(), f"{torch.max(res_probs).item()*100:.1f}%")
+                    else:
+                        col_res.metric("ResNet50", "Offline / Single Model Mode", "N/A")
