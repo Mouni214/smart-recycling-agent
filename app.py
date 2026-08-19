@@ -10,6 +10,7 @@ from torchvision import models, transforms
 from PIL import Image
 import torch.nn.functional as F
 import pandas as pd
+import plotly.express as px
 
 # --- INITIALIZE SESSION STATE FOR ECO-TRACKER ---
 if 'scan_history' not in st.session_state:
@@ -363,9 +364,34 @@ if uploaded_file is not None:
 
                     st.markdown("---")
                     st.write("**Ensemble Category Probability Distribution:**")
-                    prob_df = pd.DataFrame({
-                        "Material": [c.capitalize() for c in CLASS_NAMES],
-                        "Probability (%)": (ensemble_probs * 100).cpu().numpy()
-                    }).sort_values(by="Probability (%)", ascending=True)
                     
-                    st.bar_chart(prob_df, x="Material", y="Probability (%)", horizontal=True)
+                    # Prepare Data Sorted Descending
+                    probs_pct = (ensemble_probs * 100).cpu().numpy()
+                    df_probs = pd.DataFrame({
+                        "Material": [c.capitalize() for c in CLASS_NAMES],
+                        "Probability": probs_pct
+                    }).sort_values(by="Probability", ascending=False)
+
+                    # Highlight predicted material
+                    df_probs["Color"] = df_probs["Material"].apply(
+                        lambda x: "High Confidence" if x.lower() == predicted_class.lower() else "Low Confidence"
+                    )
+
+                    fig = px.bar(
+                        df_probs,
+                        x="Material",
+                        y="Probability",
+                        text=df_probs["Probability"].apply(lambda v: f"{v:.1f}%" if v >= 0.1 else "<0.1%"),
+                        color="Color",
+                        color_discrete_map={"High Confidence": "#00C853", "Low Confidence": "#37474F"}
+                    )
+                    fig.update_traces(textposition="outside")
+                    fig.update_layout(
+                        yaxis_title="Probability (%)",
+                        xaxis_title="Material Category",
+                        yaxis_range=[0, 115],
+                        showlegend=False,
+                        height=380,
+                        margin=dict(l=20, r=20, t=30, b=20)
+                    )
+                    st.plotly_chart(fig, use_container_width=True)
