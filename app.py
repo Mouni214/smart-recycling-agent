@@ -20,7 +20,6 @@ EFF_DROPBOX_URL = "https://www.dropbox.com/scl/fi/f1lxqlmh2tbtcjmonu1h0/efficien
 RESNET_DROPBOX_URL = "https://www.dropbox.com/scl/fi/9c9otu14o4kn9eqj0m792/resnet50_best-1.zip?rlkey=d5ilztslx74kfws3ppllyvzwg&st=f1wkrz5m&dl=1"
 
 def download_weights_if_missing():
-    """Auto-downloads and extracts missing EfficientNet-B3 and ResNet50 weights."""
     eff_exists = any('efficient' in f.lower() and f.endswith('.pth') for f in os.listdir('.'))
     if not eff_exists:
         with st.spinner("Downloading EfficientNet-B3 weights..."):
@@ -50,7 +49,6 @@ def download_weights_if_missing():
 # --- CUSTOM DECORATORS ---
 
 def measure_execution_time(func):
-    """Decorator to measure and return execution time."""
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
         start_time = time.time()
@@ -60,7 +58,6 @@ def measure_execution_time(func):
     return wrapper
 
 def handle_inference_errors(func):
-    """Decorator to catch unexpected errors during inference."""
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
         try:
@@ -79,7 +76,7 @@ SMART_RECYCLING_AGENT_DB = {
         'bin': '💚 Organic / Green Compost Bin',
         'co2_num': 0.8,
         'co2_saved_per_kg': '0.8 kg CO₂e',
-        'energy_equivalency': 'Powers a LED bulb for 12 hours',
+        'energy_equivalency': 'Powers an LED bulb for 12 hours',
         'do_list': [
             'Place directly in backyard compost or green municipal bins.',
             'Keep free from plastic wraps, bags, or twist ties.',
@@ -89,7 +86,12 @@ SMART_RECYCLING_AGENT_DB = {
             'Do not mix with treated wood, painted materials, or plastic packaging.',
             'Avoid adding meat or dairy to home compost bins to prevent pests.'
         ],
-        'upcycling_idea': '🌱 Convert organic food scraps into nutrient-rich garden compost or liquid fertilizer tea.'
+        'upcycling_ideas': [
+            '🌱 Backyard Composting: Convert scraps into nutrient-rich humus for garden beds.',
+            '🍵 Fertilizer Tea: Steep vegetable ends in water to make a nitrogen-rich liquid plant feed.',
+            '🍋 Citrus All-Purpose Cleaner: Infuse leftover lemon/orange peels in white vinegar for 2 weeks.',
+            '🪴 Seed Starter Pots: Use hollowed citrus halves or eggshells to germinate garden seeds.'
+        ]
     },
     'cardboard': {
         'bin': '📦 Blue Paper & Cardboard Bin',
@@ -102,26 +104,36 @@ SMART_RECYCLING_AGENT_DB = {
             'Keep cardboard dry at all times.'
         ],
         'dont_list': [
-            'Do not recycle cardboard contaminated with food grease (e.g., greasy pizza box bottoms).',
+            'Do not recycle cardboard contaminated with food grease.',
             'Do not include wax-coated produce boxes.'
         ],
-        'upcycling_idea': '📦 Reusable storage boxes, weed-barrier sheet mulch for gardening, or cat scratching pads.'
+        'upcycling_ideas': [
+            '📦 Drawer & Closet Organizers: Cut and assemble box sections into custom storage dividers.',
+            '🌾 Sheet Mulch Layer: Place non-printed cardboard under soil to suppress weeds naturally.',
+            '🐱 Pet Scratching Post: Glue tightly coiled cardboard strips into custom cat scratch pads.',
+            '🖼️ Picture Frame Backing: Use heavy-duty corrugated board for sturdy art backing frames.'
+        ]
     },
     'glass': {
         'bin': '🍾 Glass Collection Bin',
         'co2_num': 0.3,
         'co2_saved_per_kg': '0.3 kg CO₂e',
-        'energy_equivalency': 'Saves enough energy to power a computer for 25 minutes per bottle',
+        'energy_equivalency': 'Powers a computer for 25 minutes per bottle',
         'do_list': [
             'Rinse thoroughly to remove food or liquid residue.',
-            'Separate by color (Clear, Amber, Green) if required by local recycling centers.',
+            'Separate by color (Clear, Amber, Green) if required locally.',
             'Keep metal lids attached or sorted in metal bins.'
         ],
         'dont_list': [
-            'Do not mix container glass with window panes, mirrors, light bulbs, or Pyrex cookware.',
+            'Do not mix container glass with window panes, mirrors, or Pyrex cookware.',
             'Do not throw broken glass in open bins without protective wrapping.'
         ],
-        'upcycling_idea': '🫙 Reuse jars as food storage containers, DIY flower vases, or candle holders.'
+        'upcycling_ideas': [
+            '🫙 Dry Food Pantry Storage: Wash and sterilize jars to store rice, beans, spices, or snacks.',
+            '🕯️ Candle Holders & Lanterns: Insert tealights or fairy lights into clear jars for decor.',
+            '🌱 Propagation Vases: Fill glass bottles with water to root plant cuttings.',
+            '🎨 Mosaic Crafts: Use safely smoothed glass pieces for decorative mosaic coasters.'
+        ]
     },
     'metal': {
         'bin': '🥫 Yellow Metal & Can Recycling Bin',
@@ -137,7 +149,12 @@ SMART_RECYCLING_AGENT_DB = {
             'Do not recycle full or pressurized spray cans.',
             'Do not mix propane tanks or electronic scrap in household metal bins.'
         ],
-        'upcycling_idea': '🎨 Use clean tin cans as desk organizers, cutlery holders, or potted plant containers.'
+        'upcycling_ideas': [
+            '✏️ Desk Stationery Holders: Wrap clean tin cans with fabric or twine to organize pens.',
+            '🪴 Hanging Herb Planters: Punch drainage holes in the bottom of cans for kitchen herb gardens.',
+            '🕯️ Lantern Candle Holders: Punch decorative hole patterns into tin cans to diffuse candlelight.',
+            '🐦 Bird Feeder: Convert empty tin cans with a wooden perch into outdoor bird feeders.'
+        ]
     },
     'paper': {
         'bin': '📄 Paper & Office Waste Bin',
@@ -147,29 +164,39 @@ SMART_RECYCLING_AGENT_DB = {
         'do_list': [
             'Keep paper dry, clean, and flat.',
             'Recycle newspapers, magazines, mail, envelopes, and paper bags.',
-            'Staples and small paperclips are generally acceptable in modern facilities.'
+            'Staples and small paperclips are generally acceptable.'
         ],
         'dont_list': [
             'Do not recycle paper towels, tissues, thermal receipt paper, or wax paper.',
             'Do not recycle foil-lined wrapping paper or glitter cards.'
         ],
-        'upcycling_idea': '📝 Use clean single-sided prints for scratch notes or paper mache art projects.'
+        'upcycling_ideas': [
+            '📝 Scratchpads & Notebooks: Bind single-sided printed pages into handy scrap memo pads.',
+            '📦 Eco Packing Material: Shred old newspapers to cushion fragile items for shipping.',
+            '📜 Handmade Recycled Paper: Blend paper scraps with water to press fresh custom stationery.',
+            '🎨 Origami & Crafts: Use colorful magazine pages for paper folding or papier-mâché.'
+        ]
     },
     'plastic': {
         'bin': '♻️ Rigid Plastic Container Bin',
         'co2_num': 1.5,
         'co2_saved_per_kg': '1.5 kg CO₂e',
-        'energy_equivalency': 'Saves 5,774 kWh of energy per ton of plastic recycled',
+        'energy_equivalency': 'Saves 5,774 kWh of energy per ton recycled',
         'do_list': [
             'Check resin identification code (#1 PET and #2 HDPE are widely accepted).',
             'Rinse all containers clean of soaps, sauces, and liquids.',
             'Reattach bottle caps tightly after rinsing.'
         ],
         'dont_list': [
-            'Do not place plastic bags, bubble wrap, or film wrap in standard curb bins (use supermarket drop-offs).',
+            'Do not place plastic bags or film wrap in standard curb bins.',
             'Do not recycle black plastic containers in facilities using optical sorting.'
         ],
-        'upcycling_idea': '🪴 Convert plastic bottles into self-watering planters or small seed-starting pots.'
+        'upcycling_ideas': [
+            '🪴 Self-Watering Planters: Cut plastic bottles in half and invert the top to create wick planters.',
+            '🪛 Scoop & Funnels: Trim sturdy plastic jugs into garden soil scoops or oil funnels.',
+            '🔌 Cable Organizers: Cut plastic bottle sections into clips to manage power cords.',
+            '🐦 Vertical Garden Tower: Stack linked plastic bottles along a wall for vertical plant growth.'
+        ]
     }
 }
 
@@ -285,7 +312,6 @@ if uploaded_file is not None:
                 predicted_class = CLASS_NAMES[predicted_idx]
                 agent_info = SMART_RECYCLING_AGENT_DB[predicted_class]
 
-                # Update Session Tracker
                 st.session_state.scan_history.append({
                     "Timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
                     "Material": predicted_class.upper(),
@@ -297,7 +323,6 @@ if uploaded_file is not None:
                 st.success(f"**Detected Material:** {predicted_class.upper()} ({confidence * 100:.2f}% Confidence)")
                 st.caption(f"⚡ Analysis time: **{elapsed_time:.3f} seconds** | Facility Context: **{location_preset}**")
                 
-                # --- TABBED RECOMMENDATION SECTION ---
                 tab1, tab2, tab3, tab4 = st.tabs(["📋 Disposal Steps", "🌱 Eco Impact", "💡 Upcycling", "🔍 Model Confidence"])
 
                 with tab1:
@@ -323,8 +348,9 @@ if uploaded_file is not None:
                     st.write(f"**Energy Equivalent:** {agent_info['energy_equivalency']}")
 
                 with tab3:
-                    st.subheader("Upcycling & Reuse Alternative")
-                    st.write(agent_info['upcycling_idea'])
+                    st.subheader("💡 Creative Upcycling & Reuse Alternatives")
+                    for idea in agent_info['upcycling_ideas']:
+                        st.write(f"- {idea}")
 
                 with tab4:
                     st.subheader("Model Metrics & Predictions")
