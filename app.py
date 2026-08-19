@@ -9,6 +9,11 @@ import torch.nn as nn
 from torchvision import models, transforms
 from PIL import Image
 import torch.nn.functional as F
+import pandas as pd
+
+# --- INITIALIZE SESSION STATE FOR ECO-TRACKER ---
+if 'scan_history' not in st.session_state:
+    st.session_state.scan_history = []
 
 # --- MODEL WEIGHTS AUTO-DOWNLOAD CONFIGURATION ---
 EFF_DROPBOX_URL = "https://www.dropbox.com/scl/fi/f1lxqlmh2tbtcjmonu1h0/efficientnet_b3_best.zip?rlkey=13upilam4lijh7teqcpmvml7k&st=avoe1uui&dl=1"
@@ -45,7 +50,7 @@ def download_weights_if_missing():
 # --- CUSTOM DECORATORS ---
 
 def measure_execution_time(func):
-    """Decorator to measure and return the execution time of a function."""
+    """Decorator to measure and return execution time."""
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
         start_time = time.time()
@@ -55,7 +60,7 @@ def measure_execution_time(func):
     return wrapper
 
 def handle_inference_errors(func):
-    """Decorator to catch unexpected errors during inference safely."""
+    """Decorator to catch unexpected errors during inference."""
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
         try:
@@ -72,6 +77,7 @@ CLASS_NAMES = ['biodegradable', 'cardboard', 'glass', 'metal', 'paper', 'plastic
 SMART_RECYCLING_AGENT_DB = {
     'biodegradable': {
         'bin': '💚 Organic / Green Compost Bin',
+        'co2_num': 0.8,
         'co2_saved_per_kg': '0.8 kg CO₂e',
         'energy_equivalency': 'Powers a LED bulb for 12 hours',
         'do_list': [
@@ -87,6 +93,7 @@ SMART_RECYCLING_AGENT_DB = {
     },
     'cardboard': {
         'bin': '📦 Blue Paper & Cardboard Bin',
+        'co2_num': 3.1,
         'co2_saved_per_kg': '3.1 kg CO₂e',
         'energy_equivalency': 'Saves 4,000 kWh of electricity per ton recycled',
         'do_list': [
@@ -102,6 +109,7 @@ SMART_RECYCLING_AGENT_DB = {
     },
     'glass': {
         'bin': '🍾 Glass Collection Bin',
+        'co2_num': 0.3,
         'co2_saved_per_kg': '0.3 kg CO₂e',
         'energy_equivalency': 'Saves enough energy to power a computer for 25 minutes per bottle',
         'do_list': [
@@ -117,6 +125,7 @@ SMART_RECYCLING_AGENT_DB = {
     },
     'metal': {
         'bin': '🥫 Yellow Metal & Can Recycling Bin',
+        'co2_num': 9.0,
         'co2_saved_per_kg': '9.0 kg CO₂e (Aluminum)',
         'energy_equivalency': 'Saves 95% of energy required to process raw aluminum ore',
         'do_list': [
@@ -132,6 +141,7 @@ SMART_RECYCLING_AGENT_DB = {
     },
     'paper': {
         'bin': '📄 Paper & Office Waste Bin',
+        'co2_num': 1.8,
         'co2_saved_per_kg': '1.8 kg CO₂e',
         'energy_equivalency': 'Saves 17 trees per ton of paper recycled',
         'do_list': [
@@ -147,6 +157,7 @@ SMART_RECYCLING_AGENT_DB = {
     },
     'plastic': {
         'bin': '♻️ Rigid Plastic Container Bin',
+        'co2_num': 1.5,
         'co2_saved_per_kg': '1.5 kg CO₂e',
         'energy_equivalency': 'Saves 5,774 kWh of energy per ton of plastic recycled',
         'do_list': [
@@ -168,7 +179,6 @@ SMART_RECYCLING_AGENT_DB = {
 def load_models():
     download_weights_if_missing()
 
-    # Load EfficientNet-B3 (Dynamic lookup)
     eff_path = next((f for f in os.listdir('.') if 'efficient' in f.lower() and f.endswith('.pth')), 'efficientnet_b3_best.pth')
     eff_model = models.efficientnet_b3(weights=None)
     eff_model.classifier[1] = nn.Linear(eff_model.classifier[1].in_features, len(CLASS_NAMES))
@@ -176,7 +186,6 @@ def load_models():
     eff_model.load_state_dict(eff_ckpt['model_state_dict'] if isinstance(eff_ckpt, dict) and 'model_state_dict' in eff_ckpt else eff_ckpt)
     eff_model.eval()
 
-    # Load ResNet50 (Dynamic lookup)
     res_path = next((f for f in os.listdir('.') if 'resnet' in f.lower() and f.endswith('.pth')), None)
     res_model = None
     if res_path and os.path.exists(res_path):
@@ -205,7 +214,7 @@ def predict_ensemble(eff_model, res_model, input_tensor):
             
         confidence, predicted_idx = torch.max(ensemble_probs, 0)
         
-    return predicted_idx.item(), confidence.item(), eff_probs, res_probs
+    return predicted_idx.item(), confidence.item(), eff_probs, res_probs, ensemble_probs
 
 # --- STREAMLIT USER INTERFACE ---
 
@@ -214,9 +223,37 @@ st.set_page_config(page_title="AI Smart Recycling Agent", layout="centered", pag
 st.title("🤖 AI Smart Recycling Recommendation Agent")
 st.write("Upload an image to get dual-model classification alongside material-specific recycling guidelines and environmental impact estimates.")
 
-# Sidebar Configuration for Smart Customization
+# Sidebar Configuration & Eco Dashboard
 st.sidebar.header("⚙️ Agent Settings")
 location_preset = st.sidebar.selectbox("Select Recycling Facility Type:", ["Standard Municipal Curbside", "Specialized Sorting Plant", "Home Backyard System"])
+
+st.sidebar.markdown("---")
+st.sidebar.header("🏆 Session Eco-Tracker")
+total_scans = len(st.session_state.scan_history)
+total_co2 = sum([item["CO2 Saved (kg)"] for item in st.session_state.scan_history])
+
+if total_scans == 0:
+    badge = "🌱 Newbie Recycler"
+elif total_scans < 3:
+    badge = "🌿 Eco Apprentice"
+elif total_scans < 8:
+    badge = "⭐ Recycling Champion"
+else:
+    badge = "👑 Zero-Waste Legend"
+
+st.sidebar.metric("Total Items Scanned", total_scans)
+st.sidebar.metric("Total CO₂ Saved", f"{total_co2:.2f} kg")
+st.sidebar.info(f"**Current Rank:** {badge}")
+
+if total_scans > 0:
+    df_history = pd.DataFrame(st.session_state.scan_history)
+    csv_data = df_history.to_csv(index=False).encode('utf-8')
+    st.sidebar.download_button(
+        label="📥 Export Waste Audit (CSV)",
+        data=csv_data,
+        file_name="waste_audit_log.csv",
+        mime="text/csv"
+    )
 
 try:
     eff_model, res_model = load_models()
@@ -243,10 +280,19 @@ if uploaded_file is not None:
             
             if prediction_output is not None:
                 (result_tuple, elapsed_time) = prediction_output
-                predicted_idx, confidence, eff_probs, res_probs = result_tuple
+                predicted_idx, confidence, eff_probs, res_probs, ensemble_probs = result_tuple
                 
                 predicted_class = CLASS_NAMES[predicted_idx]
                 agent_info = SMART_RECYCLING_AGENT_DB[predicted_class]
+
+                # Update Session Tracker
+                st.session_state.scan_history.append({
+                    "Timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+                    "Material": predicted_class.upper(),
+                    "Confidence": f"{confidence * 100:.2f}%",
+                    "CO2 Saved (kg)": agent_info['co2_num'],
+                    "Target Bin": agent_info['bin']
+                })
 
                 st.success(f"**Detected Material:** {predicted_class.upper()} ({confidence * 100:.2f}% Confidence)")
                 st.caption(f"⚡ Analysis time: **{elapsed_time:.3f} seconds** | Facility Context: **{location_preset}**")
@@ -281,10 +327,19 @@ if uploaded_file is not None:
                     st.write(agent_info['upcycling_idea'])
 
                 with tab4:
-                    st.subheader("Model Breakdown")
+                    st.subheader("Model Metrics & Predictions")
                     col_eff, col_res = st.columns(2)
                     col_eff.metric("EfficientNet-B3", CLASS_NAMES[torch.argmax(eff_probs).item()].upper(), f"{torch.max(eff_probs).item()*100:.1f}%")
                     if res_model is not None:
                         col_res.metric("ResNet50", CLASS_NAMES[torch.argmax(res_probs).item()].upper(), f"{torch.max(res_probs).item()*100:.1f}%")
                     else:
                         col_res.metric("ResNet50", "Offline / Single Model Mode", "N/A")
+
+                    st.markdown("---")
+                    st.write("**Ensemble Category Probability Distribution:**")
+                    prob_df = pd.DataFrame({
+                        "Material": [c.capitalize() for c in CLASS_NAMES],
+                        "Probability (%)": (ensemble_probs * 100).cpu().numpy()
+                    }).sort_values(by="Probability (%)", ascending=True)
+                    
+                    st.bar_chart(prob_df, x="Material", y="Probability (%)", horizontal=True)
